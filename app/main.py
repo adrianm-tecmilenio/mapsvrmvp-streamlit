@@ -2,6 +2,24 @@ import streamlit as st
 import requests
 import json
 from typing import Dict, Any
+import base64, mimetypes
+from pathlib import Path
+
+APP_DIR = Path(__file__).parent if "__file__" in globals() else Path.cwd()
+
+@st.cache_data(show_spinner=False)
+def img_src_from_local(rel_path: str) -> str:
+    if not rel_path:
+        return ""
+    rel = rel_path.lstrip("/\\").replace("\\", "/")
+    p = (APP_DIR / rel).resolve()
+    if not p.exists():
+        st.error(f"Imagen no encontrada: {p}")
+        return ""
+    mime, _ = mimetypes.guess_type(p.as_posix())
+    mime = mime or "image/png"
+    b64 = base64.b64encode(p.read_bytes()).decode("ascii")
+    return f"data:{mime};base64,{b64}"
 
 # --- Config página ---
 st.set_page_config(
@@ -24,7 +42,8 @@ PERSONAJES = {
         "marital_status": "Soltera",
         "current_situation": "Experimentando ansiedad por los exámenes finales y presión académica",
         "background": "Estudiante de psicología en tercer año, vive con roommates, familia de clase media",
-        "motivation": "Quiere aprender a manejar su ansiedad y mejorar su rendimiento académico"
+        "motivation": "Quiere aprender a manejar su ansiedad y mejorar su rendimiento académico",
+        "image": "gallery/Ana.png"
     },
     "Carlos - Ejecutivo Estresado": {
         "name": "Carlos Rodríguez",
@@ -33,7 +52,9 @@ PERSONAJES = {
         "marital_status": "Casado",
         "current_situation": "Enfrentando burnout laboral y problemas para equilibrar trabajo y familia",
         "background": "Ejecutivo exitoso, padre de dos hijos, vive en la ciudad, historial de trabajar largas horas",
-        "motivation": "Busca encontrar equilibrio entre trabajo y vida personal, reducir estrés"
+        "motivation": "Busca encontrar equilibrio entre trabajo y vida personal, reducir estrés",
+        "image":"gallery/Carlos Rodríguez.png"
+    
     },
     "María - Madre Deprimida": {
         "name": "María López",
@@ -42,7 +63,8 @@ PERSONAJES = {
         "marital_status": "Casada",
         "current_situation": "Lidiando con depresión postparto y sentimientos de aislamiento",
         "background": "Recién madre, dejó su trabajo para cuidar a su bebé, vive lejos de su familia",
-        "motivation": "Quiere recuperar su bienestar emocional y conectar mejor con su bebé"
+        "motivation": "Quiere recuperar su bienestar emocional y conectar mejor con su bebé",
+        "image":"gallery/María López.png"
     },
     "Roberto - Adolescente Rebelde": {
         "name": "Roberto Martínez",
@@ -51,7 +73,8 @@ PERSONAJES = {
         "marital_status": "Soltero",
         "current_situation": "Teniendo conflictos con sus padres y problemas de conducta en la escuela",
         "background": "Adolescente de familia tradicional, se siente incomprendido, problemas de comunicación en casa",
-        "motivation": "Quiere que sus padres lo entiendan y encontrar su identidad"
+        "motivation": "Quiere que sus padres lo entiendan y encontrar su identidad",
+        "image": "gallery/Roberto Martínez.png"
     },
     "Elena - Adulta Mayor Solitaria": {
         "name": "Elena Hernández",
@@ -60,7 +83,8 @@ PERSONAJES = {
         "marital_status": "Viuda",
         "current_situation": "Sintiendo soledad y lidiando con la pérdida de su esposo hace dos años",
         "background": "Profesora jubilada, hijos viven en otras ciudades, activa en la comunidad pero se siente sola",
-        "motivation": "Quiere encontrar nuevas formas de conectar con otros y dar sentido a esta etapa de su vida"
+        "motivation": "Quiere encontrar nuevas formas de conectar con otros y dar sentido a esta etapa de su vida",
+        "image": ".\gallery\Elena Hernández.png"
     }
 }
 
@@ -90,20 +114,18 @@ def pantalla_seleccion():
     for i, (nombre_personaje, config) in enumerate(PERSONAJES.items()):
         with cols[i % 2]:
             with st.container():
+                img_src = img_src_from_local(config.get('image', ''))
                 st.markdown(f"""
-                <div style="
-                    border: 2px solid #f0f2f6;
-                    border-radius: 10px;
-                    padding: 20px;
-                    margin: 10px 0;
-                    background-color: #fafafa;
-                ">
-                    <h4 style="color: #1f77b4; margin-top: 0;">{nombre_personaje}</h4>
+                <div class="tec-card">
+                <img src="{img_src}" alt="{config['name']}" class="tec-card-img">
+                <div class="tec-card-body">
+                    <h4>{nombre_personaje}</h4>
                     <p><strong>Edad:</strong> {config['age']} años</p>
                     <p><strong>Ocupación:</strong> {config['occupation']}</p>
                     <p><strong>Estado civil:</strong> {config['marital_status']}</p>
                     <p><strong>Situación actual:</strong> {config['current_situation']}</p>
                     <p><strong>Motivación:</strong> {config['motivation']}</p>
+                </div>
                 </div>
                 """, unsafe_allow_html=True)
 
@@ -278,11 +300,58 @@ def main():
     inicializar_estado()
     st.markdown("""
     <style>
-    .stApp { background-color:#ffffff; }
-    .stTextInput > div > div > input { border-radius:20px; }
-    .stButton > button { border-radius:20px; border:none; transition: all .3s; }
-    .stButton > button:hover { transform: translateY(-2px); box-shadow:0 4px 8px rgba(0,0,0,.1); }
-    div[data-testid="stSidebar"] { background-color:#f8f9fa; }
+ 
+
+
+                
+    /* Force light app surfaces */
+    html, body, .stApp, [data-testid="stAppViewContainer"] { background:#ffffff !important; color:#1f2937 !important; }
+    [data-testid="stHeader"] { background:#ffffff !important; border-bottom:1px solid #eaeaea; }
+    [data-testid="stSidebar"] { background:#f7f9fb !important; }
+
+    /* Card styles */
+    .tec-card-body{ padding:0.875em 4em; }
+    .tec-card-body, .tec-card-body p, .tec-card-body strong, .tec-card-body h4 { color:#1f2937 !important; }
+    .tec-card-body h4{ margin:0.375em 0 0.5em; color:#1f5f8b !important; } /* 6px 0 8px */
+    .tec-card-body p{ margin:0.25em 0; line-height:1.3; }
+
+    /* buttons (Tecmilenio green) */
+    :root{ --tec-green:#00A884; --tec-green-600:#009672; --tec-green-700:#00785F; }
+    .stButton > button{
+    background:var(--tec-green); color:#fff; border:0;
+    border-radius:1.25em;
+    padding:0.625em 1em;
+    font-weight:600; cursor:pointer; box-shadow:none;
+    transition:background-color .15s ease, filter .15s ease;
+    }
+                
+    .stButton > button:hover{ background:var(--tec-green-600); filter:brightness(1.02); }
+    .stButton > button:active{ background:var(--tec-green-700); }
+    .stButton > button:focus-visible{ outline:0.125em solid rgba(0,168,132,.35); outline-offset:0.125em; } /* 2px */
+    .stButton > button:disabled{ background:#bfe9df; color:#f6f6f6; cursor:not-allowed; }
+                
+
+    /* page side padding */
+    .block-container{
+    max-width: 75em;         /* ~1200px */
+    padding-left: 4em;
+    padding-right: 4em;
+    margin-left: auto;
+    margin-right: auto;
+    }
+
+    /* extra horizontal space between Streamlit columns */
+    [data-testid="column"] > div{
+    padding-left: .5em;
+    padding-right: .5em;
+    }
+
+    /* vertical space between cards (so images don't touch) */
+    .tec-card{ margin-bottom: 1.25em; }
+
+    /* optional: small gap between image and text inside each card */
+    .tec-card-img{ margin-bottom: .75em; }
+
     </style>
     """, unsafe_allow_html=True)
 
