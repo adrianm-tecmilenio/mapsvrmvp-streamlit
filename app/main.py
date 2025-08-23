@@ -21,6 +21,36 @@ def img_src_from_local(rel_path: str) -> str:
     b64 = base64.b64encode(p.read_bytes()).decode("ascii")
     return f"data:{mime};base64,{b64}"
 
+
+def hero_header(char: dict):
+    """
+    char: {name, ocupacion, edad, photo}  # photo should be a data: URL or http URL
+    """
+    st.markdown(
+        f"""
+        <div class="hero">
+          <div class="hero-wrap">
+            <img class="avatar" src="{char['photo']}" alt="{char['name']}">
+            <div>
+              <div class="title">Conversando con {char['name']}</div>
+              <div class="sub">{char['ocupacion']} · {char['edad']} años</div>
+            </div>
+            <div class="btn-slot"></div>
+          </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    # right-aligned back button
+    _, col_btn = st.columns([1, 0.22])
+    with col_btn:
+        if st.button("◁ Volver a selección", key="back_top", use_container_width=True):
+            st.session_state.pantalla_actual = "seleccion"
+            st.session_state.historial_chat = []
+            st.session_state.personaje_seleccionado = None
+            st.session_state.configuracion = None
+            st.rerun()
+
 # --- Config página ---
 st.set_page_config(
     page_title="Simulador de Terapia Psicológica",
@@ -182,18 +212,14 @@ def enviar_mensaje_api_voice(mensaje: str, voice: str, audio_format: str) -> Dic
 
 # --- Pantalla de chat (texto + voz) ---
 def pantalla_chat():
-    col1, col2 = st.columns([3, 1])
-    with col1:
-        st.markdown(
-            f"<h1 style='color: #222; font-weight: bold;'>💬 Conversando con {st.session_state.configuracion['name']}</h1>",
-            unsafe_allow_html=True
-        )
-        st.caption(f"{st.session_state.configuracion['occupation']} | {st.session_state.configuracion['age']} años")
-    with col2:
-        if st.button("🔙 Volver a Selección", use_container_width=True):
-            st.session_state.pantalla_actual = 'seleccion'
-            st.session_state.historial_chat = []
-            st.rerun()
+    c = st.session_state.configuracion
+    char = {
+        "name": c["name"],
+        "ocupacion": c["occupation"],
+        "edad": c["age"],
+        "photo": img_src_from_local(c.get("image", "")),  # turns local file into data URL
+    }
+    hero_header(char)
 
     st.markdown("---")
 
@@ -300,11 +326,48 @@ def main():
     inicializar_estado()
     st.markdown("""
     <style>
- 
+    
+.hero{
+  position: sticky;
+  top: 0;               /* if it hides under Streamlit’s top bar, use top: 3.2rem */
+  z-index: 1000;        /* above page content */
+  background:#fff;
+}   
+
+    .hero-wrap {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: 1rem;
+    align-items: center;
+    padding: 1rem 1.25rem;
+    border: 1px solid #e5e7eb;
+    border-radius: 0.875em;
+    margin-bottom: 1rem;
+    box-shadow: 0 2px 10px rgba(0,0,0,.03);
+    }
+    .hero .title { font-size: 2.2rem; font-weight: 800; line-height: 1.1; margin: 0; }
+    .hero .sub { color: #64748b; font-size: 1rem; margin-top: .25rem; }
+    /* align the Streamlit button row to the right below the hero */
+    .hero .btn-slot > div { display: flex; justify-content: flex-end; }
 
 
+.hero .avatar{
+  width: 8.5em;
+  height: 8.5em;
+  border-radius: 50%;
+  object-fit: cover;
+  box-shadow: 0 0 0 .25em #fff, 0 0 0 .45em #dbeafe;
+}
+
+/* optional: slightly smaller on small screens */
+@media (max-width: 48em){
+  .hero .avatar{ width: 6em; height: 6em; }
+}
                 
     /* Force light app surfaces */
+
+
+
     html, body, .stApp, [data-testid="stAppViewContainer"] { background:#ffffff !important; color:#1f2937 !important; }
     [data-testid="stHeader"] { background:#ffffff !important; border-bottom:1px solid #eaeaea; }
     [data-testid="stSidebar"] { background:#f7f9fb !important; }
