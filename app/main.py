@@ -7,7 +7,7 @@ from pathlib import Path
 
 APP_DIR = Path(__file__).parent if "__file__" in globals() else Path.cwd()
 
-@st.cache_data(show_spinner=False)
+# @st.cache_data(show_spinner=False)
 def img_src_from_local(rel_path: str) -> str:
     if not rel_path:
         return ""
@@ -56,7 +56,7 @@ st.set_page_config(
     page_title="Simulador de Terapia Psicológica",
     page_icon="🧠",
     layout="wide",
-    initial_sidebar_state="collapsed"
+    initial_sidebar_state="expanded"
 )
 
 # --- URLs del API ---
@@ -136,6 +136,8 @@ def inicializar_estado():
         st.session_state.audio_format = "wav"
 
 def pantalla_seleccion():
+
+    
     st.markdown('<h1 style="color: #222831;">🧠 Simulador de Terapia Psicológica</h1>', unsafe_allow_html=True)
     st.markdown('<h3 style="color: #222831;">Selecciona un personaje para comenzar la simulación</h3>', unsafe_allow_html=True)
     st.markdown("---")
@@ -167,6 +169,90 @@ def pantalla_seleccion():
                     st.rerun()
 
 # --- Llamadas al API ---
+def enviar_mensaje_api_voice(mensaje: str, voice: str, audio_format: str) -> Dict[str, Any]:
+    """
+    Calls /simulator/voice and returns:
+      - audio_bytes
+      - mime  (e.g., 'audio/wav')
+      - transcript
+    Prefers JSON {audio_base64, media_type, transcript}. Falls back to old header+bytes.
+    """
+    try:
+        payload = {
+            "message": mensaje,
+            "voice": voice,
+            "format": audio_format,
+            "configuration": st.session_state.configuracion,
+        }
+        r = requests.post(API_VOICE_URL, json=payload, timeout=60)
+        if r.status_code != 200:
+            return {"error": f"Error del servidor: {r.status_code} - {r.text}"}
+
+        ctype = r.headers.get("Content-Type", "")
+        # New server: JSON body
+        if ctype.startswith("application/json"):
+            data = r.json()
+            audio_b64 = data.get("audio_base64")
+            if not audio_b64:
+                return {"error": "Respuesta inválida: falta audio_base64."}
+            audio_bytes = base64.b64decode(audio_b64)
+            # 👇 use the server’s media_type
+            mime = data.get("media_type", f"audio/{audio_format}")
+            transcript = data.get("transcript", "")
+
+            if transcript:
+                with open(r"transcript.txt", "w", encoding="utf-8") as f:
+                    f.write(transcript)
+
+            return {"audio_bytes": audio_bytes, "mime": mime, "transcript": transcript}
+
+        # Old server: raw audio + header (kept for compatibility)
+        audio_bytes = r.content
+        mime = f"audio/{audio_format}"
+        transcript = r.headers.get("X-Transcript", "")
+        return {"audio_bytes": audio_bytes, "mime": mime, "transcript": transcript}
+
+    except requests.exceptions.ConnectionError:
+        return {"error": "❌ No se puede conectar al servidor. Asegúrate de que /simulator/voice esté arriba."}
+    except requests.exceptions.Timeout:
+        return {"error": "⏱️ Tiempo de espera agotado al generar audio."}
+    except Exception as e:
+        return {"error": f"❌ Error inesperado: {str(e)}"}
+
+# def enviar_mensaje_api_voice(mensaje: str, voice: str, audio_format: str) -> Dict[str, Any]:
+#     """
+#     Llama a /simulator/voice y devuelve dict con:
+#       - audio_bytes
+#       - mime (por ej. 'audio/wav')
+#       - transcript (si viene en header X-Transcript)
+#     """
+#     try:
+#         payload = {"message": mensaje, "voice": voice, "format": audio_format, "configuration": st.session_state.configuracion}
+#         response = requests.post(API_VOICE_URL, json=payload, timeout=60)
+
+#         if response.status_code != 200:
+#             return {"error": f"Error del servidor: {response.status_code} - {response.text}"}
+
+#         transcript = response.headers.get("X-Transcript", "")
+#         # save to disk to translate and paste
+#         if transcript:
+#             with open(r"transcript.txt", "w", encoding="utf-8") as f:
+#                 f.write(transcript)
+
+#         # replace("\r"," ").replace("\n"," ")
+
+#         audio_bytes = response.content
+#         mime = f"audio/{audio_format}"
+
+#         return {"audio_bytes": audio_bytes, "mime": mime, "transcript": transcript}
+#     except requests.exceptions.ConnectionError:
+#         return {"error": "❌ No se puede conectar al servidor. Asegúrate de que /simulator/voice esté arriba."}
+#     except requests.exceptions.Timeout:
+#         return {"error": "⏱️ Tiempo de espera agotado al generar audio."}
+#     except Exception as e:
+#         return {"error": f"❌ Error inesperado: {str(e)}"}
+
+# --- Llamadas al API ---
 def enviar_mensaje_api_text(mensaje: str, configuracion: Dict[str, Any]) -> str:
     try:
         payload = {"message": mensaje, "configuration": configuracion}
@@ -183,32 +269,6 @@ def enviar_mensaje_api_text(mensaje: str, configuracion: Dict[str, Any]) -> str:
         return "⏱️ Tiempo de espera agotado."
     except Exception as e:
         return f"❌ Error inesperado: {str(e)}"
-
-def enviar_mensaje_api_voice(mensaje: str, voice: str, audio_format: str) -> Dict[str, Any]:
-    """
-    Llama a /simulator/voice y devuelve dict con:
-      - audio_bytes
-      - mime (por ej. 'audio/wav')
-      - transcript (si viene en header X-Transcript)
-    """
-    try:
-        payload = {"message": mensaje, "voice": voice, "format": audio_format, "configuration": st.session_state.configuracion}
-        response = requests.post(API_VOICE_URL, json=payload, timeout=60)
-
-        if response.status_code != 200:
-            return {"error": f"Error del servidor: {response.status_code} - {response.text}"}
-
-        transcript = response.headers.get("X-Transcript", "")
-        audio_bytes = response.content
-        mime = f"audio/{audio_format}"
-
-        return {"audio_bytes": audio_bytes, "mime": mime, "transcript": transcript}
-    except requests.exceptions.ConnectionError:
-        return {"error": "❌ No se puede conectar al servidor. Asegúrate de que /simulator/voice esté arriba."}
-    except requests.exceptions.Timeout:
-        return {"error": "⏱️ Tiempo de espera agotado al generar audio."}
-    except Exception as e:
-        return {"error": f"❌ Error inesperado: {str(e)}"}
 
 # --- Pantalla de chat (texto + voz) ---
 def pantalla_chat():
@@ -238,7 +298,10 @@ def pantalla_chat():
 
         st.session_state.voice_mode = st.toggle("Responder con voz", value=st.session_state.voice_mode)
         if st.session_state.voice_mode:
-            st.session_state.voice = st.selectbox("Voz", ["alloy", "echo", "shimmer"], index=["alloy","echo","shimmer"].index(st.session_state.voice))
+
+            supported_voices = ["alloy","echo","fable","onyx","nova","shimmer","ash","ballad","coral","sage","verse", "dan"]
+
+            st.session_state.voice = st.selectbox("Voz", supported_voices, index=supported_voices.index(st.session_state.voice))
             st.session_state.audio_format = st.selectbox("Formato", ["wav","mp3","m4a"], index=["wav","mp3","m4a"].index(st.session_state.audio_format))
 
         if st.button("🗑️ Limpiar Chat", use_container_width=True):
@@ -280,7 +343,7 @@ def pantalla_chat():
                 if mensaje.get('transcript'):
                     st.caption(f"📝 {mensaje['transcript']}")
 
-    st.markdown("---")
+    # st.markdown("---")
 
     # Form de entrada
     with st.form(key="chat_form", clear_on_submit=True):
@@ -326,24 +389,18 @@ def main():
     inicializar_estado()
     st.markdown("""
     <style>
-    
-.hero{
-  position: sticky;
-  top: 0;               /* if it hides under Streamlit’s top bar, use top: 3.2rem */
-  z-index: 1000;        /* above page content */
-  background:#fff;
-}   
 
     .hero-wrap {
+    position: sticky;
     display: grid;
     grid-template-columns: auto 1fr auto;
-    gap: 1rem;
+    gap: 2rem;
     align-items: center;
     padding: 1rem 1.25rem;
     border: 1px solid #e5e7eb;
     border-radius: 0.875em;
-    margin-bottom: 1rem;
-    box-shadow: 0 2px 10px rgba(0,0,0,.03);
+    margin: 1em;
+    
     }
     .hero .title { font-size: 2.2rem; font-weight: 800; line-height: 1.1; margin: 0; }
     .hero .sub { color: #64748b; font-size: 1rem; margin-top: .25rem; }
@@ -352,12 +409,13 @@ def main():
 
 
 .hero .avatar{
-  width: 8.5em;
-  height: 8.5em;
+  width: 15em;
+  height: 15em;
   border-radius: 50%;
   object-fit: cover;
   box-shadow: 0 0 0 .25em #fff, 0 0 0 .45em #dbeafe;
 }
+
 
 /* optional: slightly smaller on small screens */
 @media (max-width: 48em){
@@ -394,9 +452,15 @@ def main():
     .stButton > button:disabled{ background:#bfe9df; color:#f6f6f6; cursor:not-allowed; }
                 
 
+    /* make Enviar button match Tecmilenio green */
+    [data-testid="stFormSubmitButton"] button {
+    background: var(--tec-green) !important;
+    color: #fff !important;
+}
+
     /* page side padding */
     .block-container{
-    max-width: 75em;         /* ~1200px */
+    max-width: 75em; /* ~1200px */
     padding-left: 4em;
     padding-right: 4em;
     margin-left: auto;
@@ -405,18 +469,30 @@ def main():
 
     /* extra horizontal space between Streamlit columns */
     [data-testid="column"] > div{
-    padding-left: .5em;
-    padding-right: .5em;
+    padding-left: 1em;
+    padding-right: 1em;
     }
 
     /* vertical space between cards (so images don't touch) */
-    .tec-card{ margin-bottom: 1.25em; }
+    .tec-card{ margin-bottom: 2em; }
 
     /* optional: small gap between image and text inside each card */
     .tec-card-img{ margin-bottom: .75em; }
 
+ 
+    .hero {
+    
+    top: 1em;
+    left: 0;
+    right: 0;
+    z-index: 1000;
+    background: white;
+}
+
     </style>
     """, unsafe_allow_html=True)
+
+    
 
     if st.session_state.pantalla_actual == 'seleccion':
         pantalla_seleccion()
